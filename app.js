@@ -38,3 +38,5 @@ app.use(function(err, req, res, next) {
 });
 
 module.exports = app;
+const server = http.createServer(app);
+server.listen(5000,()=>{console.log("this app is running on port 5000")});
