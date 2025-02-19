@@ -40,4 +40,4 @@ app.use(function(err, req, res, next) {
 
 
 const server = http.createServer(app);
-server.listen(5000,()=>{console.log("this app is running on port 5000")});
+server.listen(process.env.PORT,()=>{console.log("this app is running on port 5000")});
