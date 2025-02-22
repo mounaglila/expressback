@@ -1,42 +1,68 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-const http = require("http");
+const { MongoClient } = require('mongodb');
+const express = require('express');
 
-require("dotenv").config();
+const app = express();
+const uri = 'mongodb://localhost:27017';
+const dbName = 'SchoolDB';
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
+async function fetchData() {
+    const client = new MongoClient(uri);
+    try {
+        await client.connect();
+        console.log('Connected to MongoDB');
 
-var app = express();
+        const db = client.db(dbName);
+        const collections = await db.listCollections().toArray();
+        console.log(`Number of collections (tables): ${collections.length}`);
 
+        let data = {};
+        for (const collectionInfo of collections) {
+            const collectionName = collectionInfo.name;
+            const collection = db.collection(collectionName);
+            const firstDocument = await collection.findOne({});
+            if (firstDocument) {
+                const fields = Object.keys(firstDocument);
+                data[collectionName] = {
+                    numberOfFields: fields.length,
+                    fields: fields
+                };
+            } else {
+                data[collectionName] = { message: 'This collection is empty.' };
+            }
+        }
 
-app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+        // Récupérer les données de la collection "students"
+        const studentsCollection = db.collection('students');
+        const students = await studentsCollection.find({}).toArray();
+        data.students = students;
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
+        return data;
+    } catch (err) {
+        console.error('Error:', err);
+        return { error: 'Failed to fetch data' };
+    } finally {
+        await client.close();
+        console.log('Connection closed');
+    }
+}
 
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
+// Route principale
+app.get('/', (req, res) => {
+    res.send('Welcome to the API. Use /api/getall to fetch data.');
 });
 
-// error handler
-app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
-
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
+// Route API pour récupérer les données
+app.get('/api/getall', async (req, res) => {
+    try {
+        const data = await fetchData();
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
 });
 
-const server = http.createServer(app);
-server.listen(process.env.PORT,()=>{console.log("this app is running on port 5000")});
+// Lancement du serveur Express
+const port = 3000;
+app.listen(port, () => {
+    console.log(`Server is running at http://localhost:${port}`);
+});
